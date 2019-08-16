@@ -20,6 +20,12 @@ class Client(LineOnlyReceiver):
     ip: str
     login: str = None
 
+    def addMessage(self, message):
+        if len(self.factory.last_messages) == 10:
+            self.factory.last_messages.pop(0)
+
+        self.factory.last_messages.append(message)
+
     def connectionMade(self):
         """
         Обработчик нового клиента
@@ -59,9 +65,21 @@ class Client(LineOnlyReceiver):
         if self.login is None:
             # login:admin
             if message.startswith("login:"):
-                self.login = message.replace("login:", "")
+                login = message.replace("login:", "")
+
+                logins = [i.login for i in self.factory.clients]
+                if login in logins:
+                    self.sendLine("Name is occupied. Try another name".encode())
+                    self.factory.clients.remove(self)
+                    return
+
+                self.login = login
+                for m in self.factory.last_messages:
+                    self.sendLine(m.encode())
 
                 notification = f"New client with login: {self.login}"
+
+                self.addMessage(notification)
 
                 print(notification)
                 self.factory.notify_all_users(notification)
@@ -73,6 +91,7 @@ class Server(ServerFactory):
     """Класс для управления сервером"""
 
     clients: list
+    last_messages: list
     protocol = Client
 
     def __init__(self):
@@ -84,6 +103,7 @@ class Server(ServerFactory):
         """
 
         self.clients = []
+        self.last_messages = []
         print("Server started - OK")
 
     def startFactory(self):
